@@ -1,4 +1,4 @@
-name: HEAD Monitor With Success Rate
+name: HEAD Monitor 50 Concurrency
 
 on:
   workflow_dispatch:
@@ -6,10 +6,10 @@ on:
 jobs:
   head-request:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 360  # 最大运行 6 小时，可根据需要调整
 
     steps:
-      - name: Continuous HEAD with stats
+      - name: Continuous HEAD with 50 concurrency
         run: |
           TARGET="https://xiaopang1.zwms.workers.dev/"
 
@@ -17,25 +17,27 @@ jobs:
           success=0
           round=0
 
-          echo "Starting 500 HEAD requests per second to $TARGET"
+          echo "Starting HEAD monitor: 50 concurrent requests, 500 requests per round"
 
           while true; do
             round=$((round+1))
 
+            # 使用50并发发送500次HEAD请求
+            results=$(seq 1 500 | xargs -n1 -P50 -I{} curl -s -o /dev/null -w "%{http_code}\n" -I "$TARGET")
+
             round_total=0
             round_success=0
 
-            for i in {1..500}; do
-              status=$(curl -s -o /dev/null -w "%{http_code}" -I "$TARGET")
-
-              total=$((total+1))
+            # 统计本轮结果
+            while read -r status; do
               round_total=$((round_total+1))
+              total=$((total+1))
 
               if [[ "$status" =~ ^(2|3) ]]; then
-                success=$((success+1))
                 round_success=$((round_success+1))
+                success=$((success+1))
               fi
-            done
+            done <<< "$results"
 
             # 本轮成功率
             if (( round_total > 0 )); then
@@ -44,7 +46,7 @@ jobs:
               round_rate=0
             fi
 
-            # 总体成功率
+            # 累计成功率
             if (( total > 0 )); then
               total_rate=$(awk "BEGIN {printf \"%.2f\", ($success/$total)*100}")
             else
@@ -53,9 +55,9 @@ jobs:
 
             echo "--------------------------------------"
             echo "Round: $round"
-            echo "Round Success Rate: $round_rate % ($round_success/$round_total)"
-            echo "Total Success Rate: $total_rate % ($success/$total)"
+            echo "Round Success: $round_success/$round_total ($round_rate %)"
+            echo "Total Success: $success/$total ($total_rate %)"
             echo "--------------------------------------"
 
-            sleep 1
+            sleep 1  # 可选，稍微缓冲一下再下一轮
           done
