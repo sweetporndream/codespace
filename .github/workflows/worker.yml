@@ -1,0 +1,51 @@
+name: HEAD Monitor With Success Rate
+
+on:
+  workflow_dispatch:
+
+jobs:
+  head-request:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Continuous HEAD with stats
+        run: |
+          TARGET="https://xiaopang1.zwms.workers.dev/"
+
+          total=0
+          success=0
+
+          echo "Starting 10 HEAD requests per second to $TARGET"
+
+          while true; do
+            start_time=$(date +%s)
+
+            for i in {1..500}; do
+              status=$(curl -s -o /dev/null -w "%{http_code}" -I "$TARGET")
+
+              total=$((total+1))
+
+              if [[ "$status" =~ ^2|^3 ]]; then
+                success=$((success+1))
+              fi
+            done
+
+            # 每10秒输出一次统计
+            now=$(date +%s)
+            if (( now % 10 == 0 )); then
+              if (( total > 0 )); then
+                rate=$(awk "BEGIN {printf \"%.2f\", ($success/$total)*100}")
+              else
+                rate=0
+              fi
+
+              echo "--------------------------------------"
+              echo "Total Requests: $total"
+              echo "Successful: $success"
+              echo "Success Rate: $rate %"
+              echo "--------------------------------------"
+            fi
+
+            sleep 1
+          done
