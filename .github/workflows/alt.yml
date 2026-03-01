@@ -1,0 +1,63 @@
+name: alt
+
+on:
+  workflow_dispatch:
+
+jobs:
+  head-request:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 最大运行 6 小时，可根据需要调整
+
+    steps:
+      - name: Continuous HEAD with 50 concurrency
+        run: |
+          TARGET="https://icy-river-2da8.alt-00e.workers.dev/"
+
+          total=0
+          success=0
+          round=0
+
+          echo "Starting HEAD monitor: 50 concurrent requests, 500 requests per round"
+
+          while true; do
+            round=$((round+1))
+
+            # 使用50并发发送500次HEAD请求
+            results=$(seq 1 700 | xargs -n1 -P700 -I{} curl -s -o /dev/null -w "%{http_code}\n" -I "$TARGET")
+
+            round_total=0
+            round_success=0
+
+            # 统计本轮结果
+            while read -r status; do
+              round_total=$((round_total+1))
+              total=$((total+1))
+
+              if [[ "$status" =~ ^(2|3) ]]; then
+                round_success=$((round_success+1))
+                success=$((success+1))
+              fi
+            done <<< "$results"
+
+            # 本轮成功率
+            if (( round_total > 0 )); then
+              round_rate=$(awk "BEGIN {printf \"%.2f\", ($round_success/$round_total)*100}")
+            else
+              round_rate=0
+            fi
+
+            # 累计成功率
+            if (( total > 0 )); then
+              total_rate=$(awk "BEGIN {printf \"%.2f\", ($success/$total)*100}")
+            else
+              total_rate=0
+            fi
+
+            echo "--------------------------------------"
+            echo "Round: $round"
+            echo "Round Success: $round_success/$round_total ($round_rate %)"
+            echo "Total Success: $success/$total ($total_rate %)"
+            echo "--------------------------------------"
+
+            sleep 1  # 可选，稍微缓冲一下再下一轮
+          done
