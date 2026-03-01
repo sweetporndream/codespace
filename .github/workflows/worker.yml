@@ -23,7 +23,7 @@ jobs:
             round=$((round+1))
 
             # 使用50并发发送500次HEAD请求
-            results=$(seq 1 7000 | xargs -n1 -P700 -I{} curl -s -o /dev/null -w "%{http_code}\n" -I "$TARGET")
+            results=$(seq 1 700 | xargs -n1 -P700 -I{} curl -s -o /dev/null -w "%{http_code}\n" -I "$TARGET")
 
             round_total=0
             round_success=0
